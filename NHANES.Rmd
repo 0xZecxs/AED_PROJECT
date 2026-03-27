@@ -1,7 +1,39 @@
 ---
-title: "NHANES"
+title: "Análisis de factores demográficos, clínicos y de estilo de vida en la predicción del riesgo de diabetes"
 author: "Samuel Arandia, Juan David Castañeda, Juan Felipe Rojas"
 output: html_document
 ---
 
+Importamos las bases de datos
+```{r}
+setwd('.')
+
+questionary <- read.csv("data/questionnaire.csv")[ c("SEQN","DIQ010", "SMQ020", "PAQ650") ]
+
+labs <- read.csv("data/labs.csv")[ c("SEQN", "LBXGH", "LBXTC", "LBXIN")]
+
+
+examination <- read.csv("data/examination.csv")[ c("SEQN", "BPXSY1", "BMXWT", "BMXHT", "BMXBMI", "BPXSY1")]
+
+demographic <- read.csv("data/demographic.csv") [c("SEQN", "RIAGENDR", "RIDRETH3", "DMDEDUC2")]
+
+
+dieta <- read.csv("data/diet.csv")[ c( "SEQN", "DR1TCARB", "DR1TFIBE") ]
+
+```
+
+Ahora hacemos merge a las bases de datos para obtener una única grande
+
+```{r}
+db1 <- merge(questionary, labs, by = "SEQN", all = FALSE)
+
+db2 <- merge(examination, demographic, by = "SEQN", all = FALSE)
+
+db3 <- merge(db1, db2, by = "SEQN", all = FALSE)
+
+
+db <- merge(db3, dieta, by = "SEQN", all = FALSE)
+
+head(db)
+```
 
