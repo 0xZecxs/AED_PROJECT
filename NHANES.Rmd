@@ -7,6 +7,8 @@ output: html_document
 Importamos las bases de datos
 ```{r}
 library(dplyr)
+library(ggplot2)
+library(patchwork)
 
 setwd('.')
 
@@ -68,12 +70,14 @@ head(db)
 Reescribiendo variables categoricas
 
 ```{r}
-db$Gender <- ifelse(db$Gender == 1, "Male", "Female")
-
 db <- db %>%
   mutate(
+    Gender = factor(Gender, 
+                    levels = c(1,2), 
+                    labels = c("Male", "Female")
+   ), 
     
-    Education = factor(db$Education,
+    Education = factor(Education,
                     levels = c(1, 2, 3, 4, 5, 7, 9),
                     labels = c("Less than 9th grade", 
                                "9th-11th grade", 
@@ -83,14 +87,11 @@ db <- db %>%
                                "Refused",
                                "Don't Know")
     ), 
-    Etnicity = recode(Etnicity,
-                   `1` = "Mexican American",
-                   `2` = "Other Hispanic",
-                   `3` = "Non-Hispanic White",
-                   `4` = "Non-Hispanic Black",
-                   `6` = "Non-Hispanic Asian",
-                   `7` = "Other Race - Including Multi-Racial"
-    ), 
+    Etnicity = factor(Diabetes_diagnostized, 
+                    levels = c(1, 2, 3, 4, 6, 7), 
+                    labels = c("Mexican American", "Other Hispanic", "Non-Hispanic White", 
+                               "Non-Hispanic Black", "Non-Hispanic Asian", 
+                               "Other Race - Including Multi-Racial")), 
     
     Diabetes_diagnostized = factor(Diabetes_diagnostized, 
                     levels = c(1, 2, 3, 7, 9), 
@@ -106,6 +107,280 @@ db <- db %>%
                     labels = c("Yes", "No", "Refused", "Don't know"))
   )
 
-
 ```
+
+# Variables categoricas
+
+Tablas de frecuencia: 
+```{r}
+categorical_data <- db[c("Diabetes_diagnostized", "Smoked_100_cigarrette", "Sport", "Gender", 
+                         "Etnicity", "Education")]
+summary(categorical_data)
+```
+## Histogramas 
+
+
+```{r}
+ggplot(db, aes(x=Diabetes_diagnostized , fill=Diabetes_diagnostized )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none")
+```
+
+```{r}
+ggplot(db, aes(x=Smoked_100_cigarrette , fill=Smoked_100_cigarrette )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none")
+```
+```{r}
+ggplot(db, aes(x=Sport , fill=Sport )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none")
+```
+```{r}
+ggplot(db, aes(x=Gender , fill=Gender )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none")
+```
+```{r}
+ggplot(db, aes(x=Etnicity , fill=Etnicity )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none")+ 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+```{r}
+ggplot(db, aes(x=Education, fill=Education )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+# Variables númericas 
+
+Tabla de medidas de tendencia central y posición
+```{r}
+Numeric_variables <- db[c("Age", "Glycohemoglobin", "Cholesterol", "Insulina", "Blood_pressure", "Weight",
+                          "Height", "BMI", "Carbohydrate", "Fiber")]
+
+summary(Numeric_variables)
+```
+
+Age 
+```{r}
+p1 <- ggplot(db, aes(x = Age)) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Age)) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Age)) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Age)) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+
+
+Glycohemoglobin
+```{r}
+p1 <- ggplot(db, aes(x = Glycohemoglobin )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Glycohemoglobin )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Glycohemoglobin )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Glycohemoglobin )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+Cholesterol
+
+```{r}
+p1 <- ggplot(db, aes(x = Cholesterol )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Cholesterol )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Cholesterol )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Cholesterol )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+Insulina
+
+```{r}
+p1 <- ggplot(db, aes(x = Insulina )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Insulina )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Insulina )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Insulina )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+
+Blood_pressure
+```{r}
+p1 <- ggplot(db, aes(x = Blood_pressure )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Blood_pressure )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Blood_pressure )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Blood_pressure )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+Weight
+```{r}
+p1 <- ggplot(db, aes(x = Weight )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Weight )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Weight )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Weight )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+Height
+```{r}
+p1 <- ggplot(db, aes(x = Height )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Height )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Height )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Height )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+BMI 
+```{r}
+p1 <- ggplot(db, aes(x = BMI )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = BMI )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = BMI )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = BMI )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+
+Carbohydrate
+```{r}
+p1 <- ggplot(db, aes(x = Carbohydrate )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Carbohydrate )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Carbohydrate )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Carbohydrate )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+
+Fiber
+
+```{r}
+p1 <- ggplot(db, aes(x = Fiber )) +
+  geom_histogram(fill = "skyblue", bins = 20) +
+  ggtitle("Histogram")
+
+p2 <- ggplot(db, aes(x = Fiber )) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  ggtitle("Density (KDE)")
+
+p3 <- ggplot(db, aes(x = Fiber )) +
+  geom_boxplot(fill = "orange") +
+  ggtitle("Boxplot")
+
+p4 <- ggplot(db, aes(x = "", y = Fiber )) +
+  geom_violin(fill = "purple", alpha = 0.5) +
+  ggtitle("Violin Plot")
+
+(p1 | p2) / (p3 | p4)
+```
+
+
+
+
 
