@@ -6,17 +6,17 @@ output: html_document
 
 Importamos las bases de datos
 ```{r}
+library(dplyr)
+
 setwd('.')
 
 questionary <- read.csv("data/questionnaire.csv")[ c("SEQN","DIQ010", "SMQ020", "PAQ650") ]
 
 labs <- read.csv("data/labs.csv")[ c("SEQN", "LBXGH", "LBXTC", "LBXIN")]
 
+examination <- read.csv("data/examination.csv")[ c("SEQN", "BPXSY1", "BMXWT", "BMXHT", "BMXBMI")]
 
-examination <- read.csv("data/examination.csv")[ c("SEQN", "BPXSY1", "BMXWT", "BMXHT", "BMXBMI", "BPXSY1")]
-
-demographic <- read.csv("data/demographic.csv") [c("SEQN", "RIAGENDR", "RIDRETH3", "DMDEDUC2")]
-
+demographic <- read.csv("data/demographic.csv") [c("SEQN", "RIAGENDR", "RIDRETH3", "DMDEDUC2", "RIDAGEYR")]
 
 dieta <- read.csv("data/diet.csv")[ c( "SEQN", "DR1TCARB", "DR1TFIBE") ]
 
@@ -35,5 +35,77 @@ db3 <- merge(db1, db2, by = "SEQN", all = FALSE)
 db <- merge(db3, dieta, by = "SEQN", all = FALSE)
 
 head(db)
+```
+
+Renombramos las variables de acuerdo al diccionario de datos por nombres más entendibles 
+
+- SEQN: Id
+- DIQ010: Diabetes_diagnostized 
+- SMQ020: Smoked_100_cigarrette
+- PAQ650: Sport
+- LBXGH: Glycohemoglobin 
+- LBXTC: Cholesterol 
+- LBXIN: Insulina
+- BPXSY1: Blood_pressure
+- BMXWT: Weight
+- BMXHT: Height
+- BMXBMI: BMI 
+- RIAGENDR: Gender 
+- RIDRETH3: Etnicity 
+- DMDEDUC2: Education
+- RIDAGEYR: Age
+- DR1TCARB: Carbohydrate 
+- DR1TFIBE: Fiber 
+
+```{r}
+names(db) <- c("Id", "Diabetes_diagnostized", "Smoked_100_cigarrette", "Sport",
+               "Glycohemoglobin", "Cholesterol", "Insulina", "Blood_pressure", 
+               "Weight", "Height", "BMI", "Gender", "Etnicity", "Education", 
+               "Age", "Carbohydrate", "Fiber")
+
+head(db)
+```
+Reescribiendo variables categoricas
+
+```{r}
+db$Gender <- ifelse(db$Gender == 1, "Male", "Female")
+
+db <- db %>%
+  mutate(
+    
+    Education = factor(db$Education,
+                    levels = c(1, 2, 3, 4, 5, 7, 9),
+                    labels = c("Less than 9th grade", 
+                               "9th-11th grade", 
+                               "High school graduate/GED", 
+                               "Some college or AA degree", 
+                               "College graduate or above",
+                               "Refused",
+                               "Don't Know")
+    ), 
+    Etnicity = recode(Etnicity,
+                   `1` = "Mexican American",
+                   `2` = "Other Hispanic",
+                   `3` = "Non-Hispanic White",
+                   `4` = "Non-Hispanic Black",
+                   `6` = "Non-Hispanic Asian",
+                   `7` = "Other Race - Including Multi-Racial"
+    ), 
+    
+    Diabetes_diagnostized = factor(Diabetes_diagnostized, 
+                    levels = c(1, 2, 3, 7, 9), 
+                    labels = c("Yes", "No", "Borderline", "Refused", "Don't know")),
+
+    Smoked_100_cigarrette = factor(Smoked_100_cigarrette, 
+                    levels = c(1, 2, 7, 9), 
+                    labels = c("Yes", "No", "Refused", "Don't know")),
+    
+
+    Sport = factor(Sport, 
+                    levels = c(1, 2, 7, 9), 
+                    labels = c("Yes", "No", "Refused", "Don't know"))
+  )
+
+
 ```
 

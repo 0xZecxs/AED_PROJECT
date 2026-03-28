@@ -357,7 +357,91 @@ Rojas</h4>
 </div>
 
 
+<p>Importamos las bases de datos</p>
+<pre class="r"><code>setwd(&#39;.&#39;)
 
+questionary &lt;- read.csv(&quot;data/questionnaire.csv&quot;)[ c(&quot;SEQN&quot;,&quot;DIQ010&quot;, &quot;SMQ020&quot;, &quot;PAQ650&quot;) ]
+
+labs &lt;- read.csv(&quot;data/labs.csv&quot;)[ c(&quot;SEQN&quot;, &quot;LBXGH&quot;, &quot;LBXTC&quot;, &quot;LBXIN&quot;)]
+
+examination &lt;- read.csv(&quot;data/examination.csv&quot;)[ c(&quot;SEQN&quot;, &quot;BPXSY1&quot;, &quot;BMXWT&quot;, &quot;BMXHT&quot;, &quot;BMXBMI&quot;)]
+
+demographic &lt;- read.csv(&quot;data/demographic.csv&quot;) [c(&quot;SEQN&quot;, &quot;RIAGENDR&quot;, &quot;RIDRETH3&quot;, &quot;DMDEDUC2&quot;)]
+
+dieta &lt;- read.csv(&quot;data/diet.csv&quot;)[ c( &quot;SEQN&quot;, &quot;DR1TCARB&quot;, &quot;DR1TFIBE&quot;) ]</code></pre>
+<p>Ahora hacemos merge a las bases de datos para obtener una única
+grande</p>
+<pre class="r"><code>db1 &lt;- merge(questionary, labs, by = &quot;SEQN&quot;, all = FALSE)
+
+db2 &lt;- merge(examination, demographic, by = &quot;SEQN&quot;, all = FALSE)
+
+db3 &lt;- merge(db1, db2, by = &quot;SEQN&quot;, all = FALSE)
+
+
+db &lt;- merge(db3, dieta, by = &quot;SEQN&quot;, all = FALSE)
+
+head(db)</code></pre>
+<pre><code>##    SEQN DIQ010 SMQ020 PAQ650 LBXGH LBXTC LBXIN BPXSY1 BMXWT BMXHT BMXBMI
+## 1 73557      1      1      2  13.9   167    NA    122  78.3 171.3   26.7
+## 2 73558      1      1      2   9.1   170    NA    156  89.5 176.8   28.6
+## 3 73559      1      1      2   8.9   126  5.83    140  88.9 175.3   28.9
+## 4 73560      2     NA     NA    NA   168    NA    108  32.2 137.3   17.1
+## 5 73561      2      2      2   4.9   201  6.12    136  52.0 162.4   19.7
+## 6 73562      2      1      2   5.5   226    NA    160 105.0 158.7   41.7
+##   RIAGENDR RIDRETH3 DMDEDUC2 DR1TCARB DR1TFIBE
+## 1        1        4        3   239.59     10.8
+## 2        1        3        3   423.78     16.7
+## 3        1        3        4   224.39      9.9
+## 4        1        3       NA   162.92     10.6
+## 5        2        3        5   178.20     12.3
+## 6        1        1        4   189.59     22.6</code></pre>
+<p>Renombramos las variables de acuerdo al diccionario de datos por
+nombres más entendibles</p>
+<ul>
+<li>SEQN: Id</li>
+<li>DIQ010: Diabetes_diagnostized</li>
+<li>SMQ020: Smoked_100_cigarrette</li>
+<li>PAQ650: Sport</li>
+<li>LBXGH: Glycohemoglobin</li>
+<li>LBXTC: Cholesterol</li>
+<li>LBXIN: Insulina</li>
+<li>BPXSY1: Blood_pressure</li>
+<li>BMXWT: Weight</li>
+<li>BMXHT: Height</li>
+<li>BMXBMI: BMI</li>
+<li>RIAGENDR: Gender</li>
+<li>RIDRETH3: Etnicity</li>
+<li>DMDEDUC2: Education</li>
+<li>DR1TCARB: Carbohydrate</li>
+<li>DR1TFIBE: Fiber</li>
+</ul>
+<pre class="r"><code>names(db) &lt;- c(&quot;Id&quot;, &quot;Diabetes_diagnostized&quot;, &quot;Smoked_100_cigarrette&quot;, &quot;Sport&quot;,
+               &quot;Glycohemoglobin&quot;, &quot;Cholesterol&quot;, &quot;Insulina&quot;, &quot;Blood_pressure&quot;, 
+               &quot;Weight&quot;, &quot;Height&quot;, &quot;BMI&quot;, &quot;Gender&quot;, &quot;Etnicity&quot;, &quot;Education&quot;, 
+               &quot;Carbohydrate&quot;, &quot;Fiber&quot;)
+
+head(db)</code></pre>
+<pre><code>##      Id Diabetes_diagnostized Smoked_100_cigarrette Sport Glycohemoglobin
+## 1 73557                     1                     1     2            13.9
+## 2 73558                     1                     1     2             9.1
+## 3 73559                     1                     1     2             8.9
+## 4 73560                     2                    NA    NA              NA
+## 5 73561                     2                     2     2             4.9
+## 6 73562                     2                     1     2             5.5
+##   Cholesterol Insulina Blood_pressure Weight Height  BMI Gender Etnicity
+## 1         167       NA            122   78.3  171.3 26.7      1        4
+## 2         170       NA            156   89.5  176.8 28.6      1        3
+## 3         126     5.83            140   88.9  175.3 28.9      1        3
+## 4         168       NA            108   32.2  137.3 17.1      1        3
+## 5         201     6.12            136   52.0  162.4 19.7      2        3
+## 6         226       NA            160  105.0  158.7 41.7      1        1
+##   Education Carbohydrate Fiber
+## 1         3       239.59  10.8
+## 2         3       423.78  16.7
+## 3         4       224.39   9.9
+## 4        NA       162.92  10.6
+## 5         5       178.20  12.3
+## 6         4       189.59  22.6</code></pre>
 
 
 
