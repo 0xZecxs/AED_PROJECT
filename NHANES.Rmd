@@ -35,8 +35,6 @@ db3 <- merge(db1, db2, by = "SEQN", all = FALSE)
 
 
 db <- merge(db3, dieta, by = "SEQN", all = FALSE)
-
-head(db)
 ```
 
 Renombramos las variables de acuerdo al diccionario de datos por nombres más entendibles 
@@ -58,6 +56,16 @@ Renombramos las variables de acuerdo al diccionario de datos por nombres más en
 - RIDAGEYR: Age
 - DR1TCARB: Carbohydrate 
 - DR1TFIBE: Fiber 
+
+Consideraremos a los adultos apartir de la mediana edad, pues son la población más afectada por esta enferemedad y de la que se encuentra mejor documentada
+
+```{r}
+db <- db[(db$RIDAGEYR >= 45),]
+
+head(db)
+```
+
+
 
 ```{r}
 names(db) <- c("Id", "Diabetes_diagnostized", "Smoked_100_cigarrette", "Sport",
