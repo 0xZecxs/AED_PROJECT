@@ -477,6 +477,8 @@ grafica_densidad <- ggplot(db %>% filter(!is.na(Diabetes_diagnostized) & Diabete
        x = "Edad (años)",
        y = "Densidad de Probabilidad",
        fill = "Diagnóstico")
+
+print(grafica_densidad)
 ```
 
 Actividad Fisica vs Insulina
@@ -492,5 +494,41 @@ grafica_deporte <- ggplot(db %>% filter(!is.na(Sport) & !is.na(Insulina)),
        x = "¿Realiza actividad física vigorosa?",
        y = "Niveles de Insulina",
        fill = "Actividad Física")
+print(grafica_deporte)
+```
+```{r}
+grafica_violin <- ggplot(db %>% filter(!is.na(Diabetes_diagnostized) & !is.na(Glycohemoglobin) & Diabetes_diagnostized %in% c("Yes", "No", "Borderline")), 
+       aes(x = Diabetes_diagnostized, y = Glycohemoglobin, fill = Diabetes_diagnostized)) +
+  geom_violin(alpha = 0.5, trim = FALSE, color = NA) +
+  geom_boxplot(width = 0.15, color = "black", alpha = 0.8, outlier.size = 1) +
+  # Línea de referencia clínica (Aprox 6.5% es el umbral diagnóstico de diabetes)
+  geom_hline(yintercept = 6.5, linetype = "dashed", color = "red", linewidth = 0.8) +
+  theme_minimal() +
+  labs(title = "Distribución y Densidad de Hemoglobina Glicosilada por Diagnóstico",
+       subtitle = "Línea roja punteada indica el umbral clínico referencial (6.5%)",
+       x = "Diagnóstico Médico Previo",
+       y = "Hemoglobina Glicosilada (%)") +
+  theme(legend.position = "none")
+
+print(grafica_violin)
+```
+
+```{r}
+tabla_deporte <- db %>%
+  filter(Sport %in% c("Yes", "No") & Diabetes_diagnostized %in% c("Yes", "No", "Borderline")) %>%
+  count(Sport, Diabetes_diagnostized) %>%
+  pivot_wider(names_from = Diabetes_diagnostized, values_from = n, values_fill = 0)
+
+library(kableExtra)
+
+kable(tabla_deporte, align = "c", 
+      caption = "Tabla 3. Frecuencias absolutas: Actividad Física vs Diagnóstico") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "bordered", "condensed"), 
+                full_width = FALSE, 
+                font_size = 14) %>%
+  add_header_above(c(" " = 1, "Diagnóstico de Diabetes" = 3)) %>% # Le agrega un súper título a las columnas
+  row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") # Pone el encabezado oscuro y elegante
+
+print(tabla_deporte)
 ```
 
