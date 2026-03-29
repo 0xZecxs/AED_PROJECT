@@ -9,6 +9,9 @@ Importamos las bases de datos
 library(dplyr)
 library(ggplot2)
 library(patchwork)
+library(tidyr)
+library(knitr)
+
 
 setwd('.')
 
@@ -178,6 +181,35 @@ Numeric_variables <- db[c("Age", "Glycohemoglobin", "Cholesterol", "Insulina", "
 
 summary(Numeric_variables)
 ```
+Tabla de medidas de tendencia central con coeficiente de variacion:
+```{r}
+medidas_descriptivas <- db %>%
+  summarise(
+    across(c(Age, Weight, Height, BMI, Blood_pressure, Cholesterol, 
+             Glycohemoglobin, Insulina, Carbohydrate, Fiber),
+           list(
+             Media = ~mean(.x, na.rm = TRUE),
+             Mediana = ~median(.x, na.rm = TRUE),
+             Varianza = ~var(.x, na.rm = TRUE),
+             Desv_Estandar = ~sd(.x, na.rm = TRUE),
+             Coef_Variacion = ~(sd(.x, na.rm = TRUE) / mean(.x, na.rm = TRUE)) * 100,
+             Q1 = ~quantile(.x, 0.25, na.rm = TRUE),
+             Q3 = ~quantile(.x, 0.75, na.rm = TRUE)
+           ),
+           .names = "{.col}__{.fn}" 
+    )
+  )
+
+tabla_formateada <- medidas_descriptivas %>%
+  pivot_longer(cols = everything(), 
+               names_to = c("Variable", "Medida"), 
+               names_sep = "__") %>%
+  pivot_wider(names_from = Medida, values_from = value)
+
+kable(tabla_formateada, digits = 2, align = "c", 
+      caption = "Tabla 1. Medidas de Tendencia Central, Variabilidad (con CV %) y Posición")
+```
+
 
 Age 
 ```{r}
@@ -388,7 +420,77 @@ p4 <- ggplot(db, aes(x = "", y = Fiber )) +
 (p1 | p2) / (p3 | p4)
 ```
 
+Graficos bivariados
+
+IMC basado en el diagnóstico de diabetes
+
+```{r, warning=FALSE}
+grafica_cajas <- ggplot(db %>% filter(!is.na(Diabetes_diagnostized)), 
+       aes(x = Diabetes_diagnostized, y = BMI, fill = Diabetes_diagnostized)) +
+  geom_boxplot(alpha = 0.7, color = "black") +
+  theme_minimal() +
+  labs(title = "Distribución del Índice de Masa Corporal (IMC) según Diagnóstico",
+       x = "Diagnóstico de Diabetes",
+       y = "Índice de Masa Corporal (BMI)") +
+  theme(legend.position = "none")
+
+print(grafica_cajas)
+```
 
 
+Genero vs Diagnostico de Diabetes
 
+```{r}
+tabla_cruzada <- db %>%
+  filter(!is.na(Gender) & !is.na(Diabetes_diagnostized)) %>%
+  count(Gender, Diabetes_diagnostized) %>%
+  pivot_wider(names_from = Diabetes_diagnostized, values_from = n, values_fill = 0)
+
+kable(tabla_cruzada, align = "c", 
+      caption = "Tabla 2. Frecuencias absolutas: Género vs Diagnóstico de Diabetes")
+```
+
+Proporcion del diagnostico de diabetes segun genero
+
+```{r}
+grafica_barras <- ggplot(db %>% filter(!is.na(Gender) & !is.na(Diabetes_diagnostized)), 
+       aes(x = Gender, fill = Diabetes_diagnostized)) +
+  geom_bar(position = "fill", color = "black", alpha = 0.8) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_minimal() +
+  labs(title = "Proporción del Diagnóstico de Diabetes según Género",
+       x = "Género",
+       y = "Porcentaje dentro del grupo",
+       fill = "Diagnóstico")
+
+print(grafica_barras)
+```
+
+Edad vs Diagnostico
+
+```{r}
+grafica_densidad <- ggplot(db %>% filter(!is.na(Diabetes_diagnostized) & Diabetes_diagnostized %in% c("Yes", "No")), 
+       aes(x = Age, fill = Diabetes_diagnostized)) +
+  geom_density(alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribución Poblacional de la Edad según Diagnóstico Confirmado",
+       x = "Edad (años)",
+       y = "Densidad de Probabilidad",
+       fill = "Diagnóstico")
+```
+
+Actividad Fisica vs Insulina
+
+```{r}
+grafica_deporte <- ggplot(db %>% filter(!is.na(Sport) & !is.na(Insulina)), 
+       aes(x = Sport, y = Insulina, fill = Sport)) +
+  geom_boxplot(alpha = 0.7, color = "black", outlier.color = "red", outlier.alpha = 0.5) +
+  theme_minimal() +
+  # Hacemos un zoom limitando el eje Y para que los valores atípicos extremos no aplasten las cajas
+  coord_cartesian(ylim = c(0, 150)) + 
+  labs(title = "Distribución de Insulina según Práctica de Actividad Física Vigorosa",
+       x = "¿Realiza actividad física vigorosa?",
+       y = "Niveles de Insulina",
+       fill = "Actividad Física")
+```
 
