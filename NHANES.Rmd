@@ -11,6 +11,11 @@ library(ggplot2)
 library(patchwork)
 library(tidyr)
 library(knitr)
+library(corrplot)
+library(treemapify)
+library(knitr)
+library(kableExtra) 
+library(GGally)
 
 
 setwd('.')
@@ -170,7 +175,27 @@ ggplot(db, aes(x=Education, fill=Education )) +
   theme(legend.position="none") + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+Treemap
+```{r}
 
+datos_etnia <- db %>%
+  filter(!is.na(Etnicity)) %>%
+  count(Etnicity) %>%
+  mutate(Porcentaje = n / sum(n) * 100,
+         Etiqueta = paste0(Etnicity, "\n", n, " hab.\n(", round(Porcentaje, 1), "%)"))
+
+grafica_treemap <- ggplot(datos_etnia, aes(area = n, fill = Etnicity, label = Etiqueta)) +
+  geom_treemap(color = "white", size = 2, alpha = 0.9) +
+  geom_treemap_text(colour = "white", place = "centre", grow = FALSE, reflow = TRUE, fontface = "bold", size = 12) +
+  scale_fill_brewer(palette = "Set2") + # Paleta de colores profesional
+  labs(title = "Composición Étnica de la Población de Estudio",
+       subtitle = "Distribución proporcional basada en la muestra filtrada (> 45 años)",
+       fill = "Etnicidad") +
+  theme_minimal() +
+  theme(legend.position = "none") 
+
+print(grafica_treemap)
+```
 
 # Variables númericas 
 
@@ -519,8 +544,6 @@ tabla_deporte <- db %>%
   count(Sport, Diabetes_diagnostized) %>%
   pivot_wider(names_from = Diabetes_diagnostized, values_from = n, values_fill = 0)
 
-library(kableExtra)
-
 kable(tabla_deporte, align = "c", 
       caption = "Tabla 3. Frecuencias absolutas: Actividad Física vs Diagnóstico") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered", "condensed"), 
@@ -532,8 +555,7 @@ kable(tabla_deporte, align = "c",
 print(tabla_deporte)
 ```
 ```{r}
-library(knitr)
-library(kableExtra) 
+
 
 
 freq = table(db$Diabetes_diagnostized)
@@ -554,25 +576,24 @@ kable(tabla,
                 font_size = 14) %>%
   row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") 
 ```
+
+Correlación
 ```{r}
-library(treemapify)
-datos_etnia <- db %>%
-  filter(!is.na(Etnicity)) %>%
-  count(Etnicity) %>%
-  mutate(Porcentaje = n / sum(n) * 100,
-         Etiqueta = paste0(Etnicity, "\n", n, " hab.\n(", round(Porcentaje, 1), "%)"))
 
-grafica_treemap <- ggplot(datos_etnia, aes(area = n, fill = Etnicity, label = Etiqueta)) +
-  geom_treemap(color = "white", size = 2, alpha = 0.9) +
-  geom_treemap_text(colour = "white", place = "centre", grow = FALSE, reflow = TRUE, fontface = "bold", size = 12) +
-  scale_fill_brewer(palette = "Set2") + # Paleta de colores profesional
-  labs(title = "Composición Étnica de la Población de Estudio",
-       subtitle = "Distribución proporcional basada en la muestra filtrada (> 45 años)",
-       fill = "Etnicidad") +
-  theme_minimal() +
-  theme(legend.position = "none") 
+Numeric_variables_cleared <- na.omit(Numeric_variables)
 
-print(grafica_treemap)
+ggpairs(Numeric_variables_cleared, lower = list(continuous = "smooth"),
+        diag = list(continuous = "barDiag"), axisLabels = "none")
 ```
 
+
+
+Matriz de correlación 
+```{r}
+
+Correlations <- cor(Numeric_variables_cleared)
+
+
+corrplot(Correlations, method="number")
+```
 
