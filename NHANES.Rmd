@@ -125,7 +125,7 @@ db <- db %>%
 Tablas de frecuencia: 
 ```{r}
 categorical_data <- db[c("Diabetes_diagnostized", "Smoked_100_cigarrette", "Sport", "Gender", 
-                         "Etnicity", "Education")]
+                         "Etnicity")]
 summary(categorical_data)
 ```
 ## Histogramas 
@@ -531,4 +531,48 @@ kable(tabla_deporte, align = "c",
 
 print(tabla_deporte)
 ```
+```{r}
+library(knitr)
+library(kableExtra) 
+
+
+freq = table(db$Diabetes_diagnostized)
+prop = prop.table(freq) * 100
+
+tabla = data.frame(
+  Categoría = names(freq),
+  Frecuencia = as.vector(freq),
+  Porcentaje = paste0(round(as.vector(prop), 2), "%")
+)
+
+
+kable(tabla,
+      align = "c",
+      caption = "Distribución de Frecuencias: Diagnóstico de Diabetes") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "bordered", "condensed"), 
+                full_width = FALSE, 
+                font_size = 14) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") 
+```
+```{r}
+library(treemapify)
+datos_etnia <- db %>%
+  filter(!is.na(Etnicity)) %>%
+  count(Etnicity) %>%
+  mutate(Porcentaje = n / sum(n) * 100,
+         Etiqueta = paste0(Etnicity, "\n", n, " hab.\n(", round(Porcentaje, 1), "%)"))
+
+grafica_treemap <- ggplot(datos_etnia, aes(area = n, fill = Etnicity, label = Etiqueta)) +
+  geom_treemap(color = "white", size = 2, alpha = 0.9) +
+  geom_treemap_text(colour = "white", place = "centre", grow = FALSE, reflow = TRUE, fontface = "bold", size = 12) +
+  scale_fill_brewer(palette = "Set2") + # Paleta de colores profesional
+  labs(title = "Composición Étnica de la Población de Estudio",
+       subtitle = "Distribución proporcional basada en la muestra filtrada (> 45 años)",
+       fill = "Etnicidad") +
+  theme_minimal() +
+  theme(legend.position = "none") 
+
+print(grafica_treemap)
+```
+
 
