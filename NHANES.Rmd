@@ -655,3 +655,72 @@ summary(pca_vars)
 ```
 
 Se deja fuera a Weigth y Heigth porque BMI resume esas dos.
+
+```{r}
+pca_normalized <- scale(pca_vars)
+
+head(pca_normalized)
+```
+
+Dado que las variables cuantitativas se encuentran en escalas de medición diferentes, el ACP se realizó sobre variables estandarizadas. Este procedimiento transforma cada variable para que tenga media cero y desviación estándar uno, evitando que variables con mayor escala numérica dominen artificialmente la construcción de las componentes principales.
+
+
+```{r}
+pca_diabetes <- prcomp(pca_vars,
+                       center = TRUE,
+                       scale. = TRUE)
+
+summary(pca_diabetes)
+```
+
+```{r}
+autovalores <- pca_diabetes$sdev^2
+
+autovalores
+```
+
+Se trabajara con 4 componentes
+
+```{r}
+library(factoextra)
+
+fviz_eig(pca_diabetes,
+         addlabels = TRUE,
+         ylim = c(0, 50),
+         main = "Varianza explicada por componentes principales")
+```
+El ACP muestra que la variabilidad de las variables clínicas, corporales y dietarias se encuentra distribuida en varias dimensiones. Las dos primeras componentes explican solo el 41% de la varianza total, por lo que no es posible resumir adecuadamente el fenómeno en un plano bidimensional. Esto sugiere que el riesgo de diabetes es multidimensional y que las variables seleccionadas aportan información parcialmente independiente.
+
+```{r}
+loadings_pca <- pca_diabetes$rotation[, 1:4]
+
+loadings_pca
+```
+PC1
+La primera componente principal explica el 21.6% de la variabilidad total y está determinada principalmente por las variables dietarias, especialmente carbohidratos y fibra, ambas con cargas positivas altas. Esto sugiere que PC1 representa un eje de consumo dietario, donde valores altos de la componente se asocian con mayor consumo de carbohidratos y fibra. La edad presenta una carga negativa moderada, por lo que esta componente también puede reflejar parcialmente un contraste entre mayor consumo dietario y mayor edad.
+
+PC2
+La segunda componente principal explica el 19.36% de la variabilidad total. Sus mayores cargas en valor absoluto corresponden a insulina, BMI y hemoglobina glicosilada, todas con signo negativo. Dado que estas variables están asociadas con el estado metabólico del individuo, PC2 puede interpretarse como un eje de riesgo metabólico corporal-clínico.
+
+PC3
+La tercera componente principal explica el 15.99% de la variabilidad total y está asociada principalmente con edad y presión arterial, ambas con cargas negativas altas. Esta componente puede interpretarse como un eje cardiovascular-demográfico, ya que refleja la variación conjunta entre envejecimiento y presión arterial. El colesterol presenta una carga positiva moderada, lo que indica cierto contraste con las variables anteriores dentro de esta dimensión.
+
+
+PC4
+La cuarta componente principal explica el 12.75% de la variabilidad total. Está dominada por colesterol y presión arterial, con cargas negativas altas. Por tanto, PC4 puede interpretarse como un eje cardiovascular-lipídico, en el cual se concentra información relacionada con niveles de colesterol y presión arterial.
+
+
+Resumen
+PC1: patrón dietario
+PC2: patrón metabólico corporal-clínico
+PC3: patrón edad-presión
+PC4: patrón cardiovascular-lipídico
+
+El análisis de componentes principales permitió explorar la estructura multivariada de las variables cuantitativas asociadas al riesgo de diabetes. Los resultados muestran que la variabilidad no se concentra en una sola dimensión: la primera componente explica el 21.6% de la varianza, la segunda el 19.36%, la tercera el 15.99% y la cuarta el 12.75%, alcanzando en conjunto una varianza acumulada cercana al 69.7% :contentReference[oaicite:0]{index=0}.
+
+Este comportamiento indica que las variables clínicas, corporales y dietarias no pueden resumirse adecuadamente mediante uno o dos componentes principales. En lugar de existir un único eje dominante de riesgo, los datos sugieren una estructura multidimensional: una dimensión asociada principalmente con patrones dietarios, otra con variables metabólicas como IMC, insulina y hemoglobina glicosilada, una tercera relacionada con edad y presión arterial, y una cuarta dominada por colesterol y presión arterial.
+
+Desde la perspectiva del problema de investigación, este resultado es relevante porque muestra que el riesgo de diabetes no depende de un único conjunto lineal de variables, sino de la interacción de varios perfiles parciales. Por tanto, el ACP resulta útil como herramienta exploratoria para describir la complejidad del fenómeno, pero no debe considerarse el método principal de predicción. La baja concentración de varianza en las primeras componentes justifica continuar el análisis mediante modelos supervisados, como regresión logística o análisis discriminante, que permitan estimar directamente la probabilidad de pertenecer al grupo de riesgo.
+
+
+
