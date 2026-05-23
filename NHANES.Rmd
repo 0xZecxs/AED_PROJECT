@@ -103,10 +103,13 @@ db <- db %>%
                                "Refused",
                                "Don't Know")
     ), 
-    Etnicity = factor(Diabetes_diagnostized, 
+  Etnicity = factor(Etnicity, 
                     levels = c(1, 2, 3, 4, 6, 7), 
-                    labels = c("Mexican American", "Other Hispanic", "Non-Hispanic White", 
-                               "Non-Hispanic Black", "Non-Hispanic Asian", 
+                    labels = c("Mexican American", 
+                               "Other Hispanic", 
+                               "Non-Hispanic White", 
+                               "Non-Hispanic Black", 
+                               "Non-Hispanic Asian", 
                                "Other Race - Including Multi-Racial")), 
     
     Diabetes_diagnostized = factor(Diabetes_diagnostized, 
