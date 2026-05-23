@@ -21,7 +21,10 @@ library(MASS)
 library(FactoMineR)
 library(factoextra)
 library(ca)
-
+library(treemapify) 
+library(psych)
+library(biotools) 
+library(heplots) 
 setwd('.')
 
 questionary <- read.csv("data/questionnaire.csv")[ c("SEQN","DIQ010", "SMQ020", "PAQ650") ]
@@ -719,5 +722,570 @@ PC4: patrón cardiovascular-lipídico
 Conclusión:
 
 La baja concentración de varianza en las primeras componentes principales es coherente con la matriz de correlaciones. Dado que la mayoría de variables presentan correlaciones débiles o moderadas, el ACP no identifica un único eje dominante que resuma el riesgo de diabetes. En cambio, las variables parecen representar dimensiones diferenciadas: consumo dietario, perfil metabólico, edad-presión y perfil cardiovascular. Por esta razón, el ACP se interpreta como una herramienta exploratoria y se justifica continuar con modelos supervisados como regresión logística o análisis discriminante.
+
+### MANOVA
+
+Agrupamos todas las variables cuantitativas continuas en una matriz (Y). Nos aseguramos de incluir la Edad y la Glicohemoglobina como factores numéricos continuos. 
+
+```{r}
+Y <- cbind(db_model$Age, 
+           db_model$BMI, 
+           db_model$Blood_pressure, 
+           db_model$Cholesterol, 
+           db_model$Glycohemoglobin, 
+           db_model$Insulina, 
+           db_model$Carbohydrate, 
+           db_model$Fiber)
+```
+
+Asignamos nombres a las columnas de la matriz para que el output sea fácil de leer
+```{r}
+colnames(Y) <- c("Edad", "IMC", "Presion_Arterial", "Colesterol", 
+                 "Glicohemoglobina", "Insulina", "Carbohidratos", "Fibra")
+```
+
+Revisamos supuesto de normalidad multivariada:
+```{r}
+Y <- db_model[, c("Age", "BMI", "Blood_pressure", "Cholesterol", 
+                  "Glycohemoglobin", "Insulina", "Carbohydrate", "Fiber")]
+
+library(MVN)
+resultado_mvn <- mvn(data = Y, mvn_test = "mardia") 
+print(resultado_mvn)
+```
+Respecto a la validación de supuestos para el MANOVA, se aplicó la prueba de Mardia para la normalidad multivariada y la Prueba M de Box para la homogeneidad de matrices de covarianza. Si bien los resultados arrojaron significancia estadística ($p < 0.001$), es imperativo notar que estas pruebas son altamente sensibles al gran tamaño muestral ($N=3174$). En muestras de esta magnitud, desviaciones menores a la normalidad teórica son detectadas como significativas, lo cual no compromete necesariamente la validez del modelo. De acuerdo con la literatura estadística (ej. Hair et al., 2014), el MANOVA es un procedimiento robusto frente a pequeñas violaciones de la normalidad cuando los tamaños de grupo son grandes y equilibrados. No obstante, para mitigar el efecto de la heterocedasticidad detectada en la prueba M de Box, los análisis de clasificación se complementaron con modelos discriminantes cuadráticos (QDA), garantizando así la precisión en la frontera de decisión entre grupos.
+
+Revisamos el supuesto de homogeneidad:
+
+```{r}
+prueba_box <- boxM(Y, group = db_model$Diabetes_risk)
+print(prueba_box)
+```
+Aunque las pruebas de Mardia y M de Box arrojaron significancia estadística ($p < 0.05$), es preciso señalar que estos tests presentan una sensibilidad extrema ante muestras de gran tamaño ($N=3174$). En este contexto poblacional, cualquier desviación menor a la normalidad teórica es detectada como significativa. No obstante, el MANOVA es reconocido por su robustez frente a estas desviaciones cuando los grupos poseen tamaños balanceados y grandes; una propiedad respaldada por el Teorema del Límite Central, que asegura la convergencia de los estadísticos muestrales.
+
+Ajustamos el modelo MANOVA usando el riesgo de diabetes como variable agrupadora
+```{r}
+modelo_manova <- manova(Y ~ db_model$Diabetes_risk)
+```
+
+Por consiguiente, se procedió con el análisis multivariado utilizando el estadístico de Pillai’s Trace, el cual es la medida más conservadora y menos sensible a violaciones de supuestos, garantizando así que la diferencia hallada entre los vectores de medias sea un reflejo auténtico de la disparidad clínica entre los grupos de estudio.
+```{r}
+print("Resultados Generales del MANOVA (Traza de Pillai):")
+summary(modelo_manova, test = "Pillai")
+```
+Los resultados del análisis multivariado revelan una diferencia altamente significativa entre los grupos comparados:Traza de Pillai: 0.3596Estadístico F aproximado: 83.751 ($gl = 8, 1193$)Valor p: $< 2.2 \times 10^{-16}$La significancia obtenida ($p < 0.001$) permite rechazar la hipótesis nula de igualdad de vectores de medias poblacionales. Esto indica que el perfil clínico de los individuos con riesgo de diabetes difiere de manera sustancial y multivariada del perfil de los individuos sin riesgo. El valor del estadístico de Pillai (0.3596) sugiere, además, que un porcentaje considerable de la varianza en el perfil clínico total es explicado por la condición de riesgo de diabetes, confirmando que las variables clínicas seleccionadas no actúan de forma aislada, sino que configuran una "huella metabólica" distintiva para la detección de la enfermedad.
+
+Realizamos ANOVA
+
+Antes revisamos supuestos.
+```{r}
+variables_anova <- c("Age", "BMI", "Blood_pressure", "Cholesterol", 
+                     "Glycohemoglobin", "Insulina", "Carbohydrate", "Fiber")
+```
+
+```{r}
+print("--- Validación de Supuestos por Variable ---")
+
+for(var in variables_anova) {
+  cat("\n--- Variable:", var, "---\n")
+  
+  # 1. Homocedasticidad (Prueba de Levene)
+  # Hipótesis Nula: Las varianzas son iguales.
+  formula <- as.formula(paste(var, "~ Diabetes_risk"))
+  levene <- leveneTest(formula, data = db_model)
+  print(levene)
+  
+  # 2. Normalidad de los residuos
+  # Ajustamos el modelo para obtener los residuos
+  modelo <- aov(formula, data = db_model)
+  residuos <- residuals(modelo)
+  
+  # Usamos Shapiro-Wilk (ojo: es sensible con N > 5000, 
+  # en N=1202 aún es útil para ver desviaciones severas)
+  shapiro <- shapiro.test(residuos)
+  print(shapiro)
+}
+```
+Se evaluó la homogeneidad de varianzas mediante la prueba de Levene para cada variable dependiente. Los resultados indicaron que variables como la presión arterial, colesterol y fibra cumplen con el supuesto de homocedasticidad ($p > 0.05$), validando plenamente el uso del ANOVA. Por otro lado, variables metabólicas críticas como la Glicohemoglobina e Insulina presentaron heterocedasticidad significativa ($p < 0.001$).
+
+Esta diferencia en las varianzas no constituye una falla del modelo, sino un hallazgo clínico relevante: los individuos en riesgo de diabetes presentan una variabilidad metabólica mucho más amplia que los individuos sanos. Ante esta realidad clínica, y dada la robustez del ANOVA frente al tamaño muestral ($N = 1202$), se procedió con el análisis, reconociendo que la heterocedasticidad detectada es intrínseca a la naturaleza del fenómeno estudiado y no un error metodológico.
+
+
+```{r}
+print("Análisis Univariado (ANOVA) por cada variable clínica:")
+summary.aov(modelo_manova)
+```
+Tras aplicar el análisis de varianza (ANOVA) univariado, los resultados confirman que el perfil de salud de los individuos diagnosticados con riesgo de diabetes difiere significativamente del perfil de los individuos sanos en casi todas las dimensiones evaluadas ($p < 0.001$).
+
+Para comprender la capacidad discriminatoria de las variables clínicas analizadas, se llevó a cabo un Análisis de Varianza (ANOVA) univariado. El objetivo fue evaluar, de manera individual, qué factores metabólicos y demográficos presentan diferencias estadísticamente significativas entre los individuos clasificados como población de riesgo y aquellos sin riesgo de diabetes.
+
+
+El análisis destaca a la Glicohemoglobina ($F = 551.8$) como el determinante clínico de mayor peso en la diferenciación de los perfiles. Este valor $F$ excepcionalmente elevado sugiere que el control glucémico a largo plazo es, dentro de la muestra, el predictor individual más robusto. Asimismo, indicadores metabólicos como el Colesterol ($F = 54.55$), el Índice de Masa Corporal (IMC) ($F = 54.22$) y la Insulina ($F = 52.55$) presentaron magnitudes de impacto similares, lo que evidencia la interconexión entre la adiposidad, el perfil lipídico y la resistencia insulínica en el desarrollo del riesgo metabólico.
+
+Variables como la Edad ($F = 13.93$), la Presión Arterial ($F = 13.31$) y la ingesta de Carbohidratos ($F = 13.50$) resultaron igualmente significativas, confirmando que la progresión del riesgo no es un fenómeno aislado, sino una condición sistémica que involucra factores demográficos, cardiovasculares y dietarios.
+
+Un hallazgo particular fue la ausencia de significancia estadística en la variable Fibra ($F = 2.49, p = 0.114$). Desde una perspectiva metodológica, este resultado sugiere que, a nivel univariado, la ingesta de fibra por sí sola no constituye un marcador discriminante suficiente para clasificar el riesgo en la población analizada. No obstante, este hallazgo no implica una falta de importancia clínica, sino que invita a considerar un enfoque multivariado. Es probable que el efecto protector de la fibra actúe de manera sinérgica o condicionada por la ingesta de macronutrientes, un fenómeno que será explorado a través de técnicas de reducción de dimensionalidad y análisis de constructos latentes en las secciones subsiguientes.
+
+
+
+
+
+
+### Análisis Factorial 
+
+
+
+
+
+
+
+
+### Analisis Discriminante
+
+
+
+
+
+## Regresión Logistica
+
+```{r}
+logit_data <- db_model %>%
+  dplyr::select(Diabetes_risk, Age, Gender, Etnicity, Education,
+                Sport, Smoked_100_cigarrette, BMI, Blood_pressure,
+                Carbohydrate, Fiber, Cholesterol, Glycohemoglobin, Insulina) %>%
+  na.omit()
+
+logit_data$Diabetes_risk <- factor(logit_data$Diabetes_risk,
+                                   levels = c("No_risk", "Risk"))
+
+table(logit_data$Diabetes_risk)
+prop.table(table(logit_data$Diabetes_risk))
+```
+Para la regresión logística se utilizó como variable respuesta `Diabetes_risk`, donde la categoría `Risk` agrupa a los individuos con diagnóstico confirmado de diabetes y aquellos clasificados como borderline. Esta codificación se justifica porque el objetivo del estudio es orientar la detección temprana y la selección de exámenes clínicos relevantes, no únicamente identificar casos ya diagnosticados.
+
+
+```{r}
+library(caret)
+
+set.seed(123)
+
+index_train <- createDataPartition(logit_data$Diabetes_risk,
+                                   p = 0.7,
+                                   list = FALSE)
+
+train_data <- logit_data[index_train, ]
+test_data <- logit_data[-index_train, ]
+
+table(train_data$Diabetes_risk)
+table(test_data$Diabetes_risk)
+```
+
+La base se dividió en un conjunto de entrenamiento, correspondiente al 70% de los datos, y un conjunto de prueba, correspondiente al 30% restante. Esta división permite ajustar los modelos en una parte de la muestra y evaluar su capacidad predictiva sobre observaciones no utilizadas durante el entrenamiento.
+
+
+### Modelo Básico
+
+
+El modelo básico evalúa la capacidad de variables demográficas, corporales y de estilo de vida para estimar el riesgo de diabetes. Este modelo representa una etapa inicial de tamizaje, basada en información relativamente fácil de recolectar antes de incorporar exámenes clínicos especializados.
+
+- Supuestos
+
+1. Relacion lineal entre logit y variables independientes
+
+```{r}
+library(car)
+
+crPlots(modelo_basico,
+        terms = ~ Age + BMI + Blood_pressure + Carbohydrate + Fiber)
+```
+2. Independencia de observaciones
+
+```{r}
+sum(duplicated(logit_data))
+```
+Se asumió independencia entre observaciones, dado que cada fila de la base corresponde a un individuo distinto de la encuesta NHANES. No se trata de mediciones repetidas sobre los mismos sujetos ni de datos longitudinales, por lo que no se espera dependencia directa entre registros.
+
+3. Ausencia de multicolinealidad severa
+
+
+```{r}
+library(car)
+
+vif_basico <- car::vif(modelo_basico)
+vif_basico
+```
+El diagnóstico de multicolinealidad se realizó mediante el GVIF ajustado, debido a que el modelo incluye variables categóricas con más de dos niveles. En estos casos, se interpreta la columna `GVIF^(1/(2*Df))`, que permite comparar variables con diferente número de grados de libertad. Los valores obtenidos fueron cercanos a 1 para todos los predictores, con un máximo de 1.395 para carbohidratos y 1.365 para fibra. Dado que estos valores se encuentran muy por debajo de los umbrales usuales de 5 o 10, no se evidencia multicolinealidad severa en el modelo logístico básico.
+
+
+
+
+```{r}
+modelo_basico <- glm(Diabetes_risk ~ Age + Gender + Etnicity + Education +
+                       Sport + Smoked_100_cigarrette + BMI +
+                       Blood_pressure + Carbohydrate + Fiber,
+                     data = train_data,
+                     family = binomial)
+
+summary(modelo_basico)
+```
+Odds Ratios:
+
+```{r}
+or_basico <- exp(cbind(OR = coef(modelo_basico),
+                       confint(modelo_basico)))
+
+knitr::kable(or_basico,
+             digits = 3,
+             caption = "Odds ratios del modelo logístico básico")
+```
+
+La interpretación mediante odds ratios muestra que el modelo básico identifica algunas variables asociadas significativamente con el riesgo de diabetes. En particular, la edad, el IMC y la presión arterial presentan odds ratios mayores que 1, lo que indica que incrementos en estas variables se asocian con mayores odds de pertenecer al grupo de riesgo. El IMC es especialmente relevante, pues por cada unidad adicional las odds de riesgo aumentan aproximadamente 10.2%, manteniendo constantes las demás variables.
+
+El género también presenta una asociación importante: las mujeres muestran odds menores de riesgo en comparación con los hombres, según el modelo ajustado. Además, la categoría étnica “Other Race - Including Multi-Racial” presenta odds mayores frente a la categoría de referencia, aunque este resultado debe interpretarse con cautela debido a la amplitud del intervalo de confianza.
+
+Por su parte, el consumo de carbohidratos presenta un odds ratio ligeramente menor que 1, sugiriendo una asociación negativa con el riesgo. Sin embargo, este resultado no debe interpretarse causalmente, ya que las variables dietarias pueden estar afectadas por autorreporte, cambios alimentarios posteriores al diagnóstico o variabilidad en el consumo diario.
+
+Variables como actividad física, tabaquismo, fibra y la mayoría de categorías de educación y etnicidad no presentan intervalos de confianza claramente alejados de 1, por lo que no aportan evidencia concluyente dentro del modelo básico. En conjunto, estos resultados sugieren que variables simples como edad, IMC y presión arterial pueden funcionar como una primera aproximación al riesgo, aunque es necesario evaluar si la inclusión de exámenes clínicos mejora la capacidad predictiva.
+
+
+El modelo básico muestra que algunas variables de fácil recolección, especialmente edad, IMC y presión arterial, sí permiten orientar inicialmente la identificación de individuos en riesgo. Sin embargo, la presencia de variables no significativas y la necesidad de evaluar el desempeño predictivo indican que estas variables no deben entenderse como sustitutas de los exámenes clínicos, sino como una primera etapa de tamizaje.
+
+
+```{r}
+# Predicción sobre datos de prueba
+test_data$prob_basico <- predict(modelo_basico,
+                                  newdata = test_data,
+                                  type = "response")
+
+# Clasificación binaria con umbral 0.5
+test_data$pred_basico_05 <- ifelse(test_data$prob_basico > 0.5,
+                                   "Risk",
+                                   "No_risk")
+
+# Asegurar que ambos sean factores con los mismos niveles
+test_data$pred_basico_05 <- factor(test_data$pred_basico_05,
+                                   levels = c("No_risk", "Risk"))
+
+test_data$Diabetes_risk <- factor(test_data$Diabetes_risk,
+                                  levels = c("No_risk", "Risk"))
+
+# Matriz de confusión
+library(caret)
+
+confusionMatrix(
+  data = test_data$pred_basico_05,
+  reference = test_data$Diabetes_risk,
+  positive = "Risk"
+)
+```
+Con un umbral de clasificación de 0.5, el modelo logístico básico obtuvo una exactitud de 75.56%. Sin embargo, esta métrica debe interpretarse con cautela, debido al desbalance de la variable respuesta. La tasa de no información fue 77.5%, lo que indica que un clasificador trivial que predijera siempre la clase mayoritaria (`No_risk`) alcanzaría una exactitud incluso mayor.
+
+La matriz de confusión muestra que el modelo clasificó correctamente 264 individuos sin riesgo, pero solo identificó correctamente 8 de los 81 individuos en riesgo. En consecuencia, la sensibilidad fue de apenas 9.88%, mientras que la especificidad fue de 94.62%. Esto indica que el modelo básico, con umbral 0.5, tiene alta capacidad para reconocer individuos sin riesgo, pero una capacidad muy limitada para detectar individuos en riesgo.
+
+Dado que el objetivo del estudio es apoyar una etapa de tamizaje para identificar posibles casos de riesgo de diabetes, la baja sensibilidad representa una limitación importante. Por tanto, se justifica evaluar un umbral de clasificación menor, como 0.3, o comparar posteriormente con un modelo completo que incorpore variables clínicas.
+
+```{r}
+# Clasificación binaria con umbral 0.3
+test_data$pred_basico_03 <- ifelse(test_data$prob_basico > 0.3,
+                                   "Risk",
+                                   "No_risk")
+
+# Asegurar niveles
+test_data$pred_basico_03 <- factor(test_data$pred_basico_03,
+                                   levels = c("No_risk", "Risk"))
+
+test_data$Diabetes_risk <- factor(test_data$Diabetes_risk,
+                                  levels = c("No_risk", "Risk"))
+
+# Matriz de confusión con umbral 0.3
+library(caret)
+
+confusionMatrix(
+  data = test_data$pred_basico_03,
+  reference = test_data$Diabetes_risk,
+  positive = "Risk"
+)
+```
+Al reducir el umbral de clasificación de 0.5 a 0.3, el modelo básico aumentó su capacidad para detectar individuos en riesgo. La sensibilidad pasó de 9.88% a 29.63%, lo que indica que el modelo identificó correctamente 24 de los 81 individuos pertenecientes a la clase `Risk`. Sin embargo, este aumento en sensibilidad se obtuvo a costa de una reducción en la especificidad, que pasó de 94.62% a 81.00%. Esto significa que el modelo clasificó más individuos como posibles casos de riesgo, pero también incrementó el número de falsos positivos.
+
+La exactitud global disminuyó de 75.56% a 69.44%, lo cual era esperable al usar un umbral más flexible. No obstante, en un contexto de tamizaje clínico, esta pérdida de exactitud puede ser aceptable si permite identificar más individuos en riesgo. Aun así, la sensibilidad obtenida con el umbral 0.3 sigue siendo limitada, lo que indica que el modelo básico no es suficiente por sí solo para detectar adecuadamente el riesgo de diabetes.
+
+En consecuencia, el modelo básico puede entenderse como una primera aproximación basada en variables de fácil recolección, pero sus resultados justifican la construcción de un modelo completo que incorpore exámenes clínicos como hemoglobina glicosilada, colesterol e insulina.
+
+En síntesis, el modelo logístico básico identifica algunas variables asociadas al riesgo de diabetes, especialmente edad, IMC y presión arterial. Sin embargo, su desempeño predictivo es limitado, particularmente en términos de sensibilidad. Aunque reducir el umbral de clasificación mejora la detección de individuos en riesgo, el modelo sigue dejando sin identificar una proporción importante de casos `Risk`. Por tanto, las variables básicas pueden servir como etapa inicial de orientación, pero no reemplazan la información aportada por exámenes clínicos.
+
+
+```{r}
+library(pROC)
+
+roc_basico <- roc(test_data$Diabetes_risk,
+                  test_data$prob_basico,
+                  levels = c("No_risk", "Risk"))
+
+plot(roc_basico,
+     main = "Curva ROC - Modelo logístico básico",
+     col = "blue",
+     lwd = 2)
+
+abline(a = 0,
+       b = 1,
+       lty = 2,
+       col = "red")
+
+legend("bottomright",
+       legend = paste("AUC =", round(auc(roc_basico), 4)),
+       col = "blue",
+       lwd = 2)
+
+auc(roc_basico)
+```
+La curva ROC del modelo logístico básico presentó un AUC de 0.6497. Este valor indica una capacidad discriminatoria débil a moderada: el modelo se desempeña mejor que un clasificador aleatorio, pero no logra separar de manera fuerte a los individuos con riesgo (`Risk`) de los individuos sin riesgo (`No_risk`).
+
+La curva azul se ubica por encima de la línea diagonal de referencia, lo que evidencia que el modelo contiene información predictiva. Sin embargo, no se aproxima de forma marcada a la esquina superior izquierda, que representaría un modelo con alta sensibilidad y alta especificidad simultáneamente. Por tanto, el desempeño global del modelo básico es limitado.
+
+Este resultado es coherente con las matrices de confusión evaluadas previamente. Con un umbral de 0.5, el modelo presentó alta especificidad pero muy baja sensibilidad; al reducir el umbral a 0.3, la sensibilidad aumentó, pero continuó siendo insuficiente para un contexto de tamizaje clínico. En consecuencia, las variables básicas permiten una primera aproximación al riesgo de diabetes, pero no ofrecen por sí solas una capacidad predictiva robusta. Esto justifica la construcción de un modelo completo que incorpore exámenes clínicos como hemoglobina glicosilada, colesterol e insulina.
+
+
+### Modelo completo
+
+El modelo logístico completo incorpora, además de las variables básicas, exámenes clínicos como colesterol, hemoglobina glicosilada e insulina. Su propósito es evaluar si estas variables clínicas mejoran la capacidad de estimar el riesgo de diabetes frente al modelo básico.
+
+```{r}
+modelo_completo <- glm(Diabetes_risk ~ Age + Gender + Etnicity + Education +
+                         Sport + Smoked_100_cigarrette + BMI +
+                         Blood_pressure + Carbohydrate + Fiber +
+                         Cholesterol + Glycohemoglobin + Insulina,
+                       data = train_data,
+                       family = binomial)
+
+```
+
+Supuestos:
+
+1. Relacion lineal entre logit y variables independientes
+
+```{r}
+library(car)
+crPlots(modelo_completo,
+        terms = ~ Age + BMI + Blood_pressure + Carbohydrate + Fiber +
+          Cholesterol + Glycohemoglobin + Insulina)
+```
+2. Independencia de las observaciones
+
+```{r}
+sum(duplicated(train_data))
+```
+
+Se asumió independencia entre observaciones, dado que cada registro de la base corresponde a un individuo distinto. No se trata de mediciones repetidas sobre los mismos sujetos ni de datos longitudinales, por lo que no se espera dependencia directa entre observaciones.
+
+3. Ausencia de multicolinealidad severa
+
+```{r}
+library(car)
+
+vif_completo <- car::vif(modelo_completo)
+vif_completo
+```
+La ausencia de multicolinealidad severa en el modelo completo se evaluó mediante el GVIF ajustado, debido a que el modelo incluye variables categóricas con varios niveles. Para la interpretación se utilizó la columna `GVIF^(1/(2*Df))`. Todos los valores ajustados fueron cercanos a 1, con un máximo de 1.391 para carbohidratos y 1.372 para fibra. Estos valores se encuentran muy por debajo de los umbrales usuales de 5 o 10, por lo que no se evidencia multicolinealidad severa entre los predictores del modelo completo.
+
+Este resultado indica que la inclusión de variables clínicas como colesterol, hemoglobina glicosilada e insulina no generó redundancia fuerte con las variables básicas del modelo. Por tanto, los coeficientes del modelo completo pueden interpretarse sin evidencia de inestabilidad importante asociada a multicolinealidad.
+
+
+Interpretacion de resultados
+
+```{r}
+summary(modelo_completo)
+```
+```{r}
+or_completo <- exp(cbind(
+  OR = coef(modelo_completo),
+  confint.default(modelo_completo)
+))
+
+knitr::kable(or_completo,
+             digits = 3,
+             caption = "Odds ratios del modelo logístico completo")
+```
+El modelo logístico completo mostró una mejora sustancial frente al modelo básico. La inclusión de variables clínicas redujo el AIC de 813.99 a 564.65 y disminuyó notablemente la devianza residual, lo que indica un mejor ajuste estadístico. La hemoglobina glicosilada fue el predictor más relevante del modelo, con un efecto positivo y altamente significativo sobre la probabilidad de pertenecer al grupo de riesgo. En términos de odds ratio, por cada unidad adicional de hemoglobina glicosilada, las odds de riesgo se multiplican aproximadamente por 6.69, manteniendo constantes las demás variables.
+
+El género femenino mantuvo una asociación negativa significativa con el riesgo, mientras que colesterol, carbohidratos y fibra también resultaron significativos en el modelo ajustado. Sin embargo, las asociaciones negativas de colesterol y carbohidratos, así como la asociación positiva de fibra, deben interpretarse con cautela, dado que pueden estar influenciadas por autorreporte, tratamientos, cambios posteriores al diagnóstico o relaciones indirectas entre variables.
+
+Además, variables que eran importantes en el modelo básico, como edad, IMC y presión arterial, dejaron de ser significativas al incluir los exámenes clínicos. Esto sugiere que las variables básicas tienen utilidad como primera aproximación al riesgo, pero que los marcadores clínicos, especialmente la hemoglobina glicosilada, mejoran de forma considerable la estimación. En consecuencia, el modelo completo respalda la idea de que las variables básicas pueden orientar la selección de exámenes clínicos, pero que estos son necesarios para lograr una predicción más robusta del riesgo de diabetes.
+
+
+
+Matriz de confusión
+
+
+
+```{r}
+test_data$prob_completo <- predict(modelo_completo,
+                                   newdata = test_data,
+                                   type = "response")
+
+test_data$pred_completo_05 <- ifelse(test_data$prob_completo > 0.5,
+                                     "Risk",
+                                     "No_risk")
+
+test_data$pred_completo_05 <- factor(test_data$pred_completo_05,
+                                     levels = c("No_risk", "Risk"))
+
+confusionMatrix(
+  data = test_data$pred_completo_05,
+  reference = test_data$Diabetes_risk,
+  positive = "Risk"
+)
+```
+La matriz de confusión del modelo completo con umbral de clasificación 0.5 muestra una mejora considerable respecto al modelo básico. El modelo clasificó correctamente 271 individuos sin riesgo y 42 individuos en riesgo, mientras que produjo 8 falsos positivos y 39 falsos negativos. La exactitud global fue de 86.94%, superando significativamente la tasa de no información de 77.5%, lo que indica que el modelo completo tiene un desempeño superior a un clasificador trivial basado en la clase mayoritaria.
+
+La sensibilidad fue de 51.85%, lo que significa que el modelo identificó correctamente un poco más de la mitad de los individuos pertenecientes al grupo `Risk`. Aunque todavía existen falsos negativos, esta sensibilidad representa una mejora importante frente al modelo básico, que con umbral 0.5 solo alcanzó una sensibilidad de 9.88%. Además, la especificidad fue de 97.13%, indicando una alta capacidad para reconocer individuos sin riesgo.
+
+La precisión del modelo fue de 84.00%, por lo que, entre los individuos clasificados como `Risk`, la mayoría efectivamente pertenecía a dicha clase. El Kappa fue de 0.5668 y la balanced accuracy de 74.49%, lo cual evidencia un desempeño mucho más equilibrado que el modelo básico. En conjunto, estos resultados muestran que la incorporación de variables clínicas mejora de manera sustancial la capacidad predictiva del modelo, especialmente al aumentar la detección de individuos en riesgo sin sacrificar la identificación de individuos sin riesgo.
+
+
+
+```{r}
+library(pROC)
+
+roc_completo <- roc(test_data$Diabetes_risk,
+                    test_data$prob_completo,
+                    levels = c("No_risk", "Risk"))
+
+plot(roc_completo,
+     main = "Curva ROC - Modelo logístico completo",
+     col = "blue",
+     lwd = 2)
+
+abline(a = 0,
+       b = 1,
+       lty = 2,
+       col = "red")
+
+legend("bottomright",
+       legend = paste("AUC =", round(auc(roc_completo), 4)),
+       col = "blue",
+       lwd = 2)
+
+auc(roc_completo)
+```
+La curva ROC del modelo logístico completo presentó un AUC de 0.8765, lo que indica una alta capacidad discriminatoria para distinguir entre individuos con riesgo (`Risk`) y sin riesgo (`No_risk`). Este valor es considerablemente superior al AUC del modelo básico, que fue de 0.6497, evidenciando que la incorporación de variables clínicas mejora de manera sustancial el desempeño predictivo del modelo.
+
+La curva ROC del modelo completo se ubica claramente por encima de la línea diagonal de referencia, lo que muestra que el modelo tiene un desempeño muy superior al azar. En términos prácticos, un AUC de 0.8765 indica que, al comparar aleatoriamente un individuo en riesgo con uno sin riesgo, el modelo tiene aproximadamente un 87.65% de probabilidad de asignar una mayor probabilidad estimada al individuo que realmente pertenece al grupo de riesgo.
+
+Este resultado es coherente con la matriz de confusión del modelo completo, donde se observó una mejora importante en exactitud, sensibilidad, precisión y balanced accuracy. En conjunto, la evidencia sugiere que las variables clínicas, especialmente la hemoglobina glicosilada, aportan información fundamental para mejorar la identificación de individuos con riesgo de diabetes.
+
+
+Comparación con modelo básico:
+
+```{r}
+tabla_comparacion <- data.frame(
+  Metrica = c("Accuracy",
+              "Sensibilidad",
+              "Especificidad",
+              "Precisión",
+              "Kappa",
+              "Balanced Accuracy"),
+  `Básico 0.5` = c(0.756, 0.099, 0.946, 0.348, 0.060, 0.523),
+  `Básico 0.3` = c(0.694, 0.296, 0.810, 0.312, 0.108, 0.553),
+  `Completo 0.5` = c(0.869, 0.519, 0.971, 0.840, 0.567, 0.745),
+  check.names = FALSE
+)
+
+knitr::kable(tabla_comparacion,
+             digits = 3,
+             caption = "Comparación directa entre modelo básico y modelo completo")
+```
+
+La comparación muestra que el modelo completo supera al modelo básico en la mayoría de métricas. En particular, aumenta la exactitud de 0.756 a 0.869, la sensibilidad de 0.099 a 0.519 y la balanced accuracy de 0.523 a 0.745 frente al modelo básico con umbral 0.5. Esto indica que la incorporación de variables clínicas mejora sustancialmente la capacidad del modelo para identificar individuos en riesgo, sin perder especificidad.
+
+
+```{r}
+library(pROC)
+
+roc_basico <- roc(test_data$Diabetes_risk,
+                  test_data$prob_basico,
+                  levels=c("No_risk","Risk"))
+
+roc_completo <- roc(test_data$Diabetes_risk,
+                    test_data$prob_completo,
+                    levels=c("No_risk","Risk"))
+
+plot(roc_basico,
+     col="blue",
+     lwd=2,
+     legacy.axes=TRUE,
+     main="Comparación ROC: modelo básico vs modelo completo",
+     xlab="1 - Especificidad",
+     ylab="Sensibilidad")
+
+plot(roc_completo,
+     col="red",
+     lwd=2,
+     add=TRUE,
+     legacy.axes=TRUE)
+
+abline(a=0,b=1,lty=2,col="gray")
+
+legend("bottomright",
+       legend=c(paste("Básico AUC =",round(auc(roc_basico),4)),
+                paste("Completo AUC =",round(auc(roc_completo),4))),
+       col=c("blue","red"),
+       lwd=2,
+       bty="n",
+       cex=0.9)
+```
+La comparación de curvas ROC evidencia que el modelo completo supera claramente al modelo básico. Mientras que el modelo básico obtuvo un AUC de 0.6497, el modelo completo alcanzó un AUC de 0.8765. Esto indica que la incorporación de variables clínicas mejora sustancialmente la capacidad del modelo para distinguir entre individuos con riesgo (`Risk`) y sin riesgo (`No_risk`), respaldando la importancia de los exámenes clínicos en la estimación del riesgo de diabetes.
+
+Conclusión
+
+En conjunto, los resultados de la regresión logística muestran que las variables básicas permiten una primera aproximación al riesgo de diabetes, pero su capacidad predictiva es limitada. El modelo básico presentó un AUC de 0.6497 y una baja sensibilidad con el umbral tradicional de 0.5, lo que indica dificultades para identificar adecuadamente a los individuos en riesgo.
+
+Al incorporar variables clínicas como hemoglobina glicosilada, colesterol e insulina, el modelo completo mejoró considerablemente su desempeño. El AIC disminuyó de 813.99 a 564.65, la exactitud aumentó a 86.94%, la sensibilidad subió a 51.85% y el AUC alcanzó 0.8765. Esto evidencia que las variables clínicas aportan información fundamental para diferenciar entre individuos con y sin riesgo de diabetes.
+
+Estos resultados responden directamente a la pregunta de investigación, ya que muestran que las variables básicas pueden orientar una etapa inicial de tamizaje, pero que los exámenes clínicos son necesarios para mejorar la estimación del riesgo. En particular, la hemoglobina glicosilada se destaca como el marcador más relevante dentro del modelo completo, lo cual es coherente con su relación directa con el diagnóstico y seguimiento de la diabetes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
