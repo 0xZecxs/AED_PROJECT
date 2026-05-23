@@ -654,4 +654,4 @@ head(pca_vars)
 summary(pca_vars)
 ```
 
-Se deja fuera a Weigth y Heigth porque BMI resume esas dos
+Se deja fuera a Weigth y Heigth porque BMI resume esas dos.
