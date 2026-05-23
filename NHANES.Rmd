@@ -725,6 +725,18 @@ La baja concentración de varianza en las primeras componentes principales es co
 
 ### MANOVA
 
+```{r}
+Y <- cbind(db_model$Age, 
+           db_model$BMI, 
+           db_model$Blood_pressure, 
+           db_model$Cholesterol, 
+           db_model$Glycohemoglobin, 
+           db_model$Insulina, 
+           db_model$Carbohydrate, 
+           db_model$Fiber)
+```
+
+
 Agrupamos todas las variables cuantitativas continuas en una matriz (Y). Nos aseguramos de incluir la Edad y la Glicohemoglobina como factores numéricos continuos. 
 
 ```{r}
@@ -833,6 +845,60 @@ Un hallazgo particular fue la ausencia de significancia estadística en la varia
 
 ### Análisis Factorial 
 
+Para abordar la complejidad del perfil clínico y mitigar potenciales problemas de multicolinealidad en el modelamiento predictivo, se llevó a cabo un Análisis Factorial Exploratorio (AFE). Previo a la extracción, las variables originales fueron estandarizadas (escaladas) para asegurar la comparabilidad entre distintas unidades de medida. La determinación del número óptimo de factores se realizó mediante un Análisis Paralelo, un criterio objetivo y robusto que contrastó los autovalores de la matriz de datos con una matriz aleatoria, sugiriendo la retención de tres dimensiones latentes.
+
+La extracción factorial se ejecutó mediante el método de Máxima Verosimilitud (ML), aplicando una rotación oblicua (Oblimin). Esta elección metodológica se fundamenta en la premisa biológica de que los constructos clínicos y conductuales en la salud humana no son estrictamente ortogonales (independientes), sino que presentan un grado de correlación natural.
+
+Seleccionamos estrictamente las variables continuas
+```{r}
+datos_af <- db_model[, c("Age", "BMI", "Blood_pressure", "Cholesterol", 
+                         "Glycohemoglobin", "Insulina", "Carbohydrate", "Fiber")]
+```
+
+Escalar los datos es VITAL porque tienen unidades muy distintas (años vs kg/m2 vs mg/dL)
+```{r}
+datos_af_escalados <- scale(datos_af)
+```
+
+Análisis Paralelo para determinar el número de factores
+```{r}
+fa.parallel(datos_af_escalados, fa = "fa", n.iter = 100, show.legend = TRUE)
+```
+
+Ejecutamos el Analisis factorial. Usaremos rotación "oblimin".
+
+```{r}
+fit_af <- fa(r = cor(datos_af_escalados), 
+             nfactors = 3,       # Cambia este número según lo que te diga el paralelo
+             rotate = "oblimin", 
+             fm = "ml")
+
+print(fit_af$loadings)
+```
+
+El modelo de tres factores logra explicar el 42.1% de la varianza acumulada total del sistema. El análisis de las cargas factoriales (loadings) permite agrupar e identificar las siguientes dimensiones latentes:
+
+Factor 1: Perfil Dietario y Nutricional (ML3 - 17.2% de la varianza):
+Este constructo está fuertemente dominado por la ingesta de Carbohidratos (carga de 0.996) y, en menor medida, por la Fibra (0.610). Representa el componente puramente conductual y de hábitos alimenticios del paciente. Es notable que la fibra, la cual no mostró significancia aislada en el análisis univariado, cobra relevancia estructural al integrarse en este factor de ingesta macronutricional.
+
+Factor 2: Componente Demográfico-Estructural (ML2 - 14.2% de la varianza):
+Esta dimensión está definida casi en su totalidad por la Edad, tratada como variable continua (carga excepcional de 0.997), acompañada de una contribución moderada de la Presión Arterial (0.296). Este factor captura el desgaste sistémico y el envejecimiento cronológico vascular, aislando el impacto del tiempo sobre el riesgo metabólico.
+
+Factor 3: Riesgo Metabólico y Resistencia a la Insulina (ML1 - 10.6% de la varianza):
+Representa el núcleo clínico de la patología. Agrupa los marcadores biológicos directos del riesgo: la Insulina (0.576), el Índice de Masa Corporal (IMC) (0.535) y la Glicohemoglobina (LBXGH) (0.445). Este factor evidencia la interdependencia fisiológica entre la adiposidad y el descontrol glucémico crónico.
+
+Ejecutamos el Analisis factorial. Usaremos rotación "varimax".
+
+```{r}
+fit_af <- fa(r = cor(datos_af_escalados), 
+             nfactors = 3,       # Cambia este número según lo que te diga el paralelo
+             rotate = "varimax", 
+             fm = "ml")
+
+print(fit_af$loadings)
+```
+
+La estructura factorial obtenida demuestra que las ocho variables clínicas originales pueden sintetizarse eficientemente en tres ejes conceptuales: Hábitos Dietarios, Desgaste Demográfico y Alteración Metabólica. Esta reducción dimensional valida la hipótesis de que los indicadores de salud operan de manera conjunta. La extracción de las puntuaciones factoriales (scores) para cada individuo permite reemplazar las variables originales en las fases subsiguientes, proporcionando vectores ortogonalizados que optimizarán la estabilidad y precisión de los algoritmos de clasificación multivariada.
 
 
 
@@ -842,7 +908,99 @@ Un hallazgo particular fue la ausencia de significancia estadística en la varia
 
 ### Analisis Discriminante
 
+Una vez establecida la estructura subyacente del perfil clínico mediante el Análisis Factorial Exploratorio (AFE), se procedió a la fase de modelamiento predictivo para clasificar a los individuos según su nivel de riesgo de diabetes. Metodológicamente, se determinó no utilizar las ocho variables clínicas originales de forma directa, sino sustituirlas por los puntajes factoriales (factor scores) calculados para cada individuo.
 
+```{r}
+# 1. Asegurémonos de que el modelo esté bien definido (usando 'regression')
+# Es vital que tu base 'datos_af_escalados' tenga los datos centrados y escalados
+fit_af <- fa(r = cor(datos_af_escalados), 
+             nfactors = 3, 
+             rotate = "oblimin", 
+             fm = "ml", 
+             scores = "regression")
+
+# 2. Si el objeto anterior no tiene $scores, usamos la función 'factor.scores' 
+# que es más directa y siempre funciona:
+mis_scores <- factor.scores(datos_af_escalados, fit_af)
+
+# 3. Asignamos al dataframe db_model
+db_model$F_Demografico <- mis_scores$scores[, 1]
+db_model$F_Metabolico  <- mis_scores$scores[, 2]
+db_model$F_Dietario    <- mis_scores$scores[, 3]
+
+# 4. Verificación final (si esto sale bien, ya coronamos)
+print("¡Columnas creadas exitosamente!")
+print(head(db_model[, c("F_Demografico", "F_Metabolico", "F_Dietario")]))
+```
+
+
+```{r}
+db_model$Diabetes_risk <- as.factor(db_model$Diabetes_risk)
+```
+
+Agrupamos las variables predictoras
+```{r}
+predictores_disc <- db_model[, c("F_Demografico", "F_Metabolico", "F_Dietario")]
+```
+
+Ejecutamos la Prueba M de Box
+```{r}
+prueba_box <- boxM(Y = predictores_disc, group = db_model$Diabetes_risk)
+
+print("--- Prueba M de Box para Homogeneidad de Covarianzas ---")
+print(prueba_box)
+summary(prueba_box)
+```
+
+Previo a la ejecución del algoritmo de clasificación, se identificó un desbalance significativo en la variable respuesta (riesgo de diabetes), con una proporción de la clase mayoritaria (pacientes sin riesgo) sustancialmente superior a la clase minoritaria (pacientes con riesgo). En los modelos de clasificación clínica, omitir este desequilibrio tiende a sesgar la frontera de decisión hacia la clase mayoritaria, comprometiendo la sensibilidad del modelo y aumentando la tasa de falsos negativos (pacientes en riesgo no detectados).
+
+Para asegurar una validación cruzada rigurosa y evitar el sobreajuste (overfitting), la muestra original fue particionada aleatoriamente en un conjunto de entrenamiento (70%, $n = 842$) y un conjunto de prueba independiente (30%, $n = 360$). Dado el desequilibrio inherente de la condición metabólica en la población, se aplicó una técnica de sobremuestreo (up-sampling) de forma exclusiva sobre los datos de entrenamiento. Este procedimiento igualó la distribución de clases (653 individuos sanos frente a 653 con riesgo), forzando al algoritmo QDA a aprender la "huella" de la enfermedad sin sesgarse hacia la predicción de la clase mayoritaria.
+
+```{r}
+train_index <- createDataPartition(db_model$Diabetes_risk, p = 0.7, list = FALSE)
+
+train_set <- db_model[train_index, ]
+test_set  <- db_model[-train_index, ]
+
+# Verificamos el tamaño de los conjuntos
+cat("Tamaño de Entrenamiento:", nrow(train_set), "individuos\n")
+cat("Tamaño de Prueba:", nrow(test_set), "individuos\n\n")
+
+# Step 3: Aplicar remuestreo (Up-sampling) SOLO al conjunto de entrenamiento
+train_balanced <- upSample(x = train_set[, c("F_Demografico", "F_Metabolico", "F_Dietario")],
+                           y = train_set$Diabetes_risk,
+                           yname = "Diabetes_risk")
+
+# Verificamos que el entrenamiento haya quedado perfectamente balanceado (50/50)
+print("Distribución de clases en el entrenamiento balanceado:")
+print(table(train_balanced$Diabetes_risk))
+
+# Step 4: Ajustar el modelo QDA usando los factores del set de ENTRENAMIENTO balanceado
+modelo_qda_final <- qda(Diabetes_risk ~ F_Demografico + F_Metabolico + F_Dietario, 
+                        data = train_balanced)
+
+# Step 5: Evaluar el modelo prediciendo sobre el set de PRUEBA (el 30% intacto)
+predicciones_test <- predict(modelo_qda_final, newdata = test_set)
+
+# Step 6: Generar la Matriz de Confusión formal
+# Especificamos 'positive = "Risk"' para que las métricas se enfoquen en detectar el riesgo
+matriz_evaluacion <- confusionMatrix(data = predicciones_test$class, 
+                                     reference = test_set$Diabetes_risk, 
+                                     positive = "Risk")
+
+# Desplegar todos los resultados en la consola
+print("--- RESULTADOS FINALES DEL MODELO QDA EN EL SET DE PRUEBA ---")
+print(matriz_evaluacion)
+```
+El valor clínico de un modelo de cribado metabólico se define por su capacidad para no dejar casos reales sin diagnosticar (Falsos Negativos). En este sentido, los resultados muestran la siguiente estructura de rendimiento:
+
+Especificidad (82.80%): El modelo exhibe una alta capacidad para descartar la enfermedad en personas verdaderamente sanas. Su Valor Predictivo Negativo (VPN = 0.86) indica que, cuando el modelo clasifica a un paciente como "Sin Riesgo", existe un 86.19% de probabilidad de que el diagnóstico automatizado sea correcto.
+
+Sensibilidad (54.32%): Tras el balanceo de clases, el modelo logra identificar de manera correcta a más de la mitad de los individuos que genuinamente presentan riesgo de diabetes, a partir de tan solo tres variables latentes. Aunque este valor sugiere la presencia de 37 falsos negativos en la muestra de prueba, representa un incremento indispensable frente a modelos no balanceados, que típicamente sacrifican la detección temprana en favor de una alta exactitud global.
+
+Tasa de Falsos Positivos: El modelo catalogó como pacientes de riesgo a 48 individuos verdaderamente sanos. En el ámbito del tamizaje epidemiológico, este margen de error es preferible y tolerable, puesto que un falso positivo derivará en exámenes médicos preventivos adicionales, mitigando el riesgo letal de ignorar un cuadro de diabetes en desarrollo.
+
+En síntesis, el modelo predictivo QDA construido sobre el Análisis Factorial Exploratorio se consolida como una herramienta metodológicamente robusta. La alta especificidad lograda indica una excelente capacidad para perfilar a la población metabólicamente estable. Al mismo tiempo, el sacrificio marginal en la precisión absoluta es una decisión algorítmica justificada para asegurar una sensibilidad superior al 54%, demostrando que la integración estadística de factores demográficos, dietarios y marcadores clínicos clave (como la glicohemoglobina) proporciona un instrumento analítico de alto valor para el tamizaje primario en salud pública.
 
 
 
