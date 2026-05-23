@@ -8,15 +8,19 @@ Importamos las bases de datos
 ```{r}
 library(dplyr)
 library(ggplot2)
-library(patchwork)
 library(tidyr)
 library(knitr)
+library(kableExtra)
 library(corrplot)
-library(treemapify)
-library(knitr)
-library(kableExtra) 
 library(GGally)
-
+library(patchwork)
+library(car)
+library(caret)
+library(pROC)
+library(MASS)
+library(FactoMineR)
+library(factoextra)
+library(ca)
 
 setwd('.')
 
@@ -599,4 +603,55 @@ Correlations <- cor(Numeric_variables_cleared)
 
 corrplot(Correlations, method="number")
 ```
+### Última entrega
 
+```{r}
+db_model <- db %>%
+  filter(Diabetes_diagnostized %in% c("Yes", "No", "Borderline")) %>%
+  mutate(
+    Diabetes_risk = ifelse(Diabetes_diagnostized %in% c("Yes", "Borderline"), 
+                           "Risk", 
+                           "No_risk"),
+    Diabetes_risk = factor(Diabetes_risk, levels = c("No_risk", "Risk"))
+  ) %>%
+  filter(
+    !is.na(Age),
+    !is.na(BMI),
+    !is.na(Blood_pressure),
+    !is.na(Cholesterol),
+    !is.na(Glycohemoglobin),
+    !is.na(Insulina),
+    !is.na(Carbohydrate),
+    !is.na(Fiber),
+    !is.na(Gender),
+    !is.na(Etnicity),
+    !is.na(Education),
+    !is.na(Sport),
+    !is.na(Smoked_100_cigarrette)
+  ) %>%
+  filter(
+    Sport %in% c("Yes", "No"),
+    Smoked_100_cigarrette %in% c("Yes", "No"),
+    !Education %in% c("Refused", "Don't Know")
+  )
+
+table(db_model$Diabetes_risk)
+prop.table(table(db_model$Diabetes_risk))
+```
+
+Para el análisis predictivo se construyó una variable binaria denominada `Diabetes_risk`, en la cual se agruparon los individuos diagnosticados con diabetes y aquellos clasificados como borderline en una categoría de riesgo. Esta decisión se justifica porque el objetivo del estudio no es únicamente identificar diagnósticos confirmados, sino evaluar si las variables demográficas, corporales, clínicas y de estilo de vida permiten orientar la detección temprana de individuos con posible riesgo metabólico. Se excluyeron las categorías "Refused" y "Don't know" por no aportar información clínica interpretable.
+
+
+### Analisis de Componentes Principales
+
+```{r}
+pca_vars <- db_model %>%
+  dplyr::select(Age, BMI, Blood_pressure, Cholesterol,
+                Glycohemoglobin, Insulina, Carbohydrate, Fiber) %>%
+  na.omit()
+
+head(pca_vars)
+summary(pca_vars)
+```
+
+Se deja fuera a Weigth y Heigth porque BMI resume esas dos
