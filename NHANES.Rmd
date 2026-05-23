@@ -719,3 +719,5 @@ PC4: patrón cardiovascular-lipídico
 Conclusión:
 
 La baja concentración de varianza en las primeras componentes principales es coherente con la matriz de correlaciones. Dado que la mayoría de variables presentan correlaciones débiles o moderadas, el ACP no identifica un único eje dominante que resuma el riesgo de diabetes. En cambio, las variables parecen representar dimensiones diferenciadas: consumo dietario, perfil metabólico, edad-presión y perfil cardiovascular. Por esta razón, el ACP se interpreta como una herramienta exploratoria y se justifica continuar con modelos supervisados como regresión logística o análisis discriminante.
+
+
