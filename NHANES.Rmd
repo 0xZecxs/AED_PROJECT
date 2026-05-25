@@ -606,7 +606,8 @@ Correlations <- cor(Numeric_variables_cleared)
 
 corrplot(Correlations, method="number")
 ```
-### Última entrega
+
+### Fase final
 
 ```{r}
 db_model <- db %>%
@@ -850,6 +851,8 @@ Para abordar la complejidad del perfil clínico y mitigar potenciales problemas 
 La extracción factorial se ejecutó mediante el método de Máxima Verosimilitud (ML), aplicando una rotación oblicua (Oblimin). Esta elección metodológica se fundamenta en la premisa biológica de que los constructos clínicos y conductuales en la salud humana no son estrictamente ortogonales (independientes), sino que presentan un grado de correlación natural.
 
 Seleccionamos estrictamente las variables continuas
+
+
 ```{r}
 datos_af <- db_model[, c("Age", "BMI", "Blood_pressure", "Cholesterol", 
                          "Glycohemoglobin", "Insulina", "Carbohydrate", "Fiber")]
@@ -897,6 +900,11 @@ fit_af <- fa(r = cor(datos_af_escalados),
 
 print(fit_af$loadings)
 ```
+```{r}
+
+fa.diagram(fit_af)
+```
+
 
 La estructura factorial obtenida demuestra que las ocho variables clínicas originales pueden sintetizarse eficientemente en tres ejes conceptuales: Hábitos Dietarios, Desgaste Demográfico y Alteración Metabólica. Esta reducción dimensional valida la hipótesis de que los indicadores de salud operan de manera conjunta. La extracción de las puntuaciones factoriales (scores) para cada individuo permite reemplazar las variables originales en las fases subsiguientes, proporcionando vectores ortogonalizados que optimizarán la estabilidad y precisión de los algoritmos de clasificación multivariada.
 
@@ -1007,17 +1015,26 @@ En síntesis, el modelo predictivo QDA construido sobre el Análisis Factorial E
 ## Regresión Logistica
 
 ```{r}
+
+library(dplyr)
+library(caret)
+
+# Selección de variables
 logit_data <- db_model %>%
-  dplyr::select(Diabetes_risk, Age, Gender, Etnicity, Education,
-                Sport, Smoked_100_cigarrette, BMI, Blood_pressure,
-                Carbohydrate, Fiber, Cholesterol, Glycohemoglobin, Insulina) %>%
+  dplyr::select(
+    Diabetes_risk, Age, Gender, Etnicity, Education,
+    Sport, Smoked_100_cigarrette , BMI, Blood_pressure,
+    Carbohydrate, Fiber, Cholesterol, Glycohemoglobin, Insulina
+  ) %>%
   na.omit()
 
-logit_data$Diabetes_risk <- factor(logit_data$Diabetes_risk,
-                                   levels = c("No_risk", "Risk"))
+# Factor respuesta
+logit_data$Diabetes_risk <- factor(
+  logit_data$Diabetes_risk,
+  levels = c("No_risk", "Risk")
+)
 
-table(logit_data$Diabetes_risk)
-prop.table(table(logit_data$Diabetes_risk))
+
 ```
 Para la regresión logística se utilizó como variable respuesta `Diabetes_risk`, donde la categoría `Risk` agrupa a los individuos con diagnóstico confirmado de diabetes y aquellos clasificados como borderline. Esta codificación se justifica porque el objetivo del estudio es orientar la detección temprana y la selección de exámenes clínicos relevantes, no únicamente identificar casos ya diagnosticados.
 
@@ -1040,11 +1057,55 @@ table(test_data$Diabetes_risk)
 
 La base se dividió en un conjunto de entrenamiento, correspondiente al 70% de los datos, y un conjunto de prueba, correspondiente al 30% restante. Esta división permite ajustar los modelos en una parte de la muestra y evaluar su capacidad predictiva sobre observaciones no utilizadas durante el entrenamiento.
 
+A continuación se prosiguió a hacer oversampling para evitar que una categoría sea preferida sobre otra
+
+
+```{r}
+
+# Balanceo por oversampling
+set.seed(123)
+
+train_data <- upSample(
+  x = train_data %>% dplyr::select(-Diabetes_risk),
+  y = train_data$Diabetes_risk,
+  yname = "Diabetes_risk"
+)
+
+# Ver distribución nueva
+table(train_data$Diabetes_risk)
+prop.table(table(train_data$Diabetes_risk))
+```
+
+```{r}
+set.seed(123)
+
+test_data <- upSample(
+  x = test_data %>% dplyr::select(-Diabetes_risk),
+  y = test_data$Diabetes_risk,
+  yname = "Diabetes_risk"
+)
+
+# Ver distribución nueva
+table(test_data$Diabetes_risk)
+prop.table(table(test_data$Diabetes_risk))
+```
+
 
 ### Modelo Básico
 
 
 El modelo básico evalúa la capacidad de variables demográficas, corporales y de estilo de vida para estimar el riesgo de diabetes. Este modelo representa una etapa inicial de tamizaje, basada en información relativamente fácil de recolectar antes de incorporar exámenes clínicos especializados.
+
+```{r}
+modelo_basico <- glm(Diabetes_risk ~ Age + Gender + Etnicity + Education +
+                       Sport + Smoked_100_cigarrette + BMI +
+                       Blood_pressure + Carbohydrate + Fiber,
+                     data = train_data,
+                     family = binomial)
+
+summary(modelo_basico)
+```
+
 
 - Supuestos
 
@@ -1077,15 +1138,6 @@ El diagnóstico de multicolinealidad se realizó mediante el GVIF ajustado, debi
 
 
 
-```{r}
-modelo_basico <- glm(Diabetes_risk ~ Age + Gender + Etnicity + Education +
-                       Sport + Smoked_100_cigarrette + BMI +
-                       Blood_pressure + Carbohydrate + Fiber,
-                     data = train_data,
-                     family = binomial)
-
-summary(modelo_basico)
-```
 Odds Ratios:
 
 ```{r}
@@ -1404,6 +1456,8 @@ Estos resultados responden directamente a la pregunta de investigación, ya que 
 
 
 
+
+# Clustering
 
 
 
