@@ -837,6 +837,82 @@ Variables como la Edad ($F = 13.93$), la Presión Arterial ($F = 13.31$) y la in
 Un hallazgo particular fue la ausencia de significancia estadística en la variable Fibra ($F = 2.49, p = 0.114$). Desde una perspectiva metodológica, este resultado sugiere que, a nivel univariado, la ingesta de fibra por sí sola no constituye un marcador discriminante suficiente para clasificar el riesgo en la población analizada. No obstante, este hallazgo no implica una falta de importancia clínica, sino que invita a considerar un enfoque multivariado. Es probable que el efecto protector de la fibra actúe de manera sinérgica o condicionada por la ingesta de macronutrientes, un fenómeno que será explorado a través de técnicas de reducción de dimensionalidad y análisis de constructos latentes en las secciones subsiguientes.
 
 
+```{r}
+library(fmsb)
+
+# Crear dataframe
+radar_df <- data.frame(
+  Diabetes_risk = db_model$Diabetes_risk,
+  Age = db_model$Age,
+  BMI = db_model$BMI,
+  BloodPressure = db_model$Blood_pressure,
+  Cholesterol = db_model$Cholesterol,
+  HbA1c = db_model$Glycohemoglobin,
+  Insulin = db_model$Insulina,
+  Carbohydrates = db_model$Carbohydrate,
+  Fiber = db_model$Fiber
+)
+
+# Promedios por grupo
+means_df <- radar_df %>%
+  group_by(Diabetes_risk) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+# Convertir rownames
+means_mat <- as.data.frame(means_df)
+rownames(means_mat) <- means_mat$Diabetes_risk
+means_mat$Diabetes_risk <- NULL
+
+# Escalar variables entre 0 y 1
+means_scaled <- as.data.frame(scale(means_mat))
+
+# Agregar filas máximas y mínimas requeridas por fmsb
+radar_plot <- rbind(
+  rep(2, ncol(means_scaled)),   # máximos
+  rep(-2, ncol(means_scaled)),  # mínimos
+  means_scaled
+)
+
+# Nombres de columnas más bonitos
+colnames(radar_plot) <- c(
+  "Age",
+  "BMI",
+  "Blood\nPressure",
+  "Cholesterol",
+  "HbA1c",
+  "Insulin",
+  "Carbohydrates",
+  "Fiber"
+)
+
+# Radar chart
+radarchart(
+  radar_plot,
+  
+  axistype = 1,
+  
+  pcol = c("red", "blue"),
+  pfcol = c(rgb(1,0,0,0.3), rgb(0,0,1,0.3)),
+  plwd = 3,
+  
+  cglcol = "grey",
+  cglty = 1,
+  axislabcol = "grey30",
+  
+  vlcex = 0.9,
+  
+  title = "Metabolic profile by diabetes risk"
+)
+
+legend(
+  "topright",
+  legend = rownames(means_scaled),
+  col = c("red", "blue"),
+  lwd = 3,
+  bty = "n"
+)
+
+```
 
 
 
