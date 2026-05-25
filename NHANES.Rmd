@@ -759,9 +759,6 @@ colnames(Y) <- c("Edad", "IMC", "Presion_Arterial", "Colesterol",
 
 Revisamos supuesto de normalidad multivariada:
 ```{r}
-Y <- db_model[, c("Age", "BMI", "Blood_pressure", "Cholesterol", 
-                  "Glycohemoglobin", "Insulina", "Carbohydrate", "Fiber")]
-
 library(MVN)
 resultado_mvn <- mvn(data = Y, mvn_test = "mardia") 
 print(resultado_mvn)
@@ -1458,20 +1455,29 @@ Estos resultados responden directamente a la pregunta de investigación, ya que 
 
 
 # Clustering
+A continuación se intentó hacer un k-means para ver si los datos lograba discriminar o conglomerar los grupos de alto riesgo y no alto riesgo. 
+
+```{r}
+# Obtenemos la base de datos: 
+cluster_Vars <- db_model %>%
+  dplyr::select(
+    Diabetes_risk, Age, BMI, Blood_pressure,
+    Carbohydrate, Fiber, Cholesterol, Glycohemoglobin, Insulina
+  ) %>%
+  na.omit() %>%
+  mutate(
+    Diabetes_risk = ifelse(Diabetes_risk == "Risk", 1, 0)
+  )
 
 
 
+clustering_db <- scale(cluster_Vars)
 
+library(factoextra)
+fviz_nbclust(clustering_db, kmeans, method = "wss") 
+```
 
-
-
-
-
-
-
-
-
-
+No hay codo evidente en ninguna parte. 
 
 
 
